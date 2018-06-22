@@ -40,6 +40,9 @@ def generateSiftDescriptors(imgList):
     return np.asarray(descList)
 
 def findPhoto(sketchDesc, photosDescs):
+    shortestDistance = float("inf")
+    shortestDistanceIndex = 0
+
     # FLANN parameters
     FLANN_INDEX_KDTREE = 1
     index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
@@ -47,19 +50,34 @@ def findPhoto(sketchDesc, photosDescs):
 
     flann = cv2.FlannBasedMatcher(index_params,search_params)
     
-    for photoDesc in photosDescs:
+    for index, photoDesc in enumerate(photosDescs):
         matches = flann.knnMatch(sketchDesc, photoDesc, 2)
-        print(sum([m[0].distance + m[1].distance for m in matches]))
+        distance = sum([m[0].distance + m[1].distance for m in matches])
+
+        if distance < shortestDistance:
+            shortestDistance = distance
+            shortestDistanceIndex = index
+
+    return shortestDistanceIndex
+
 
 def main():
-    print("start")
     sketches = readPictures("./sketches/")
     photos = readPictures("./photos/")
 
     sketchesDescs = generateSiftDescriptors(sketches)
     photosDescs = generateSiftDescriptors(photos)
 
-    findPhoto(sketchesDescs[5], photosDescs)
+    acertos = 0
+
+    for sketchIndex, sketch in enumerate(sketchesDescs):
+        photoIndex = findPhoto(sketch, photosDescs)
+        print("\n\n" + str(sketchIndex) + " : "+ str(photoIndex))
+
+        if sketchIndex == photoIndex:
+            acertos += 1
+
+    print("Acertos: " + str((acertos / len(sketchesDescs)) * 100) + " %")
 
 if __name__ == "__main__":
     main()
