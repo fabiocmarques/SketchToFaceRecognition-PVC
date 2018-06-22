@@ -29,16 +29,16 @@ def generateSiftDescriptors(imgList):
 
         for x in range(0, w, displacement):
             for y in range(0, h, displacement):
-                print("X: " + str(x) + " Y: " + str(y))
+               # print("X: " + str(x) + " Y: " + str(y))
                 if x + S >= w or y + S >= h:
                     continue
 
-                desc = sift.compute(img, cv2.KeyPoint(x, y, 32))
-                descList[-1].append(desc)
-            
-        print(descList)
-        exit(0)
+                kp = cv2.KeyPoint(x, y, 32)
+                _, desc = sift.compute(img, [kp])
+                descList[-1].append(desc[0])
 
+        print(len(descList[-1]))
+        exit(0)
     return descList
 
 def main():
@@ -47,7 +47,7 @@ def main():
     photos = readPictures("./photos/")
 
     sketchesDescs = generateSiftDescriptors(sketches)
-
+    photosDescs = generateSiftDescriptors(photos)
 
 if __name__ == "__main__":
     main()
