@@ -5,17 +5,21 @@ import os
 S = 32
 displacement = 16
 
+class InfoHolder:
+     def __init__(self, dType, data):
+         self.dType = dType
+         self.data = data
 
 def readPictures(path):
     files = sorted(os.listdir(path))
     picList = []
 
     for imagefile in files:
-        if imagefile[-4:] != ".jpg":
+        if imagefile[-4:] != ".jpg" and imagefile[-4:] != ".png":
             continue
 
         img = cv2.imread(path + imagefile, 0)
-        picList.append(img)
+        picList.append(InfoHolder(imagefile[0], img))
 
     return picList
 
@@ -23,8 +27,9 @@ def generateSiftDescriptors(imgList):
     sift = cv2.xfeatures2d.SIFT_create()
     descList = []
 
-    for img in imgList:
-        descList.append([])
+    for imgInfo in imgList:
+        img = imgInfo.data
+        descList.append(InfoHolder(imgInfo.dType, []))
         h, w = img.shape
 
         for x in range(0, w, displacement):
@@ -35,11 +40,15 @@ def generateSiftDescriptors(imgList):
 
                 kp = cv2.KeyPoint(x, y, 32)
                 _, desc = sift.compute(img, [kp])
-                descList[-1].append(desc[0])
+                descList[-1].data.append(desc[0])
+        
+        descList[-1].data = np.asarray(descList[-1].data)
 
     return np.asarray(descList)
 
-def findPhoto(sketchDesc, photosDescs):
+def findPhoto(sketchInfo, photosDescs, genderDiff = False):
+    skType = sketchInfo.dType
+    sketchDesc = sketchInfo.data
     shortestDistance = float("inf")
     shortestDistanceIndex = 0
 
@@ -50,9 +59,44 @@ def findPhoto(sketchDesc, photosDescs):
 
     flann = cv2.FlannBasedMatcher(index_params,search_params)
     
-    for index, photoDesc in enumerate(photosDescs):
-        matches = flann.knnMatch(sketchDesc, photoDesc, 2)
-        distance = sum([m[0].distance + m[1].distance for m in matches])
+    for index, photoDescInfo in enumerate(photosDescs):
+        phType = photoDescInfo.dType
+        photoDesc = photoDescInfo.data
+
+        if genderDiff and skType is not phType:
+            continue
+
+        #matches = flann.knnMatch(sketchDesc, photoDesc, 2)
+        #distance = sum([m[0].distance + m[1].distance for m in matches])
+
+        matches = flann.match(sketchDesc, photoDesc)
+        distance = sum([m.distance for m in matches])
+
+        if distance < shortestDistance:
+            shortestDistance = distance
+            shortestDistanceIndex = index
+
+    return shortestDistanceIndex
+
+def findPhotoBF(sketchInfo, photosDescs, genderDiff = False):
+    skType = sketchInfo.dType
+    sketchDesc = sketchInfo.data
+    shortestDistance = float("inf")
+    shortestDistanceIndex = 0
+
+    # create BFMatcher object
+    bf = cv2.BFMatcher()
+    
+    for index, photoDescInfo in enumerate(photosDescs):
+        phType = photoDescInfo.dType
+        photoDesc = photoDescInfo.data
+
+        if genderDiff and skType is not phType:
+            continue
+
+        matches = bf.knnMatch(sketchDesc, photoDesc, 3)
+
+        distance = sum([m[0].distance + m[1].distance + m[2].distance for m in matches])
 
         if distance < shortestDistance:
             shortestDistance = distance
@@ -69,10 +113,14 @@ def main():
     photosDescs = generateSiftDescriptors(photos)
 
     acertos = 0
+    BF = False
 
     for sketchIndex, sketch in enumerate(sketchesDescs):
-        photoIndex = findPhoto(sketch, photosDescs)
-        print("\n\n" + str(sketchIndex) + " : "+ str(photoIndex))
+        if BF:
+            photoIndex = findPhotoBF(sketch, photosDescs)
+        else:
+            photoIndex = findPhoto(sketch, photosDescs)
+        #print("\n\n" + str(sketchIndex) + " : "+ str(photoIndex))
 
         if sketchIndex == photoIndex:
             acertos += 1
